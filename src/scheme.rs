@@ -9,8 +9,8 @@ fn number_to_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D:
 
 #[derive(Deserialize)]
 pub struct Config {
-    name: String,
-    password: String
+    pub name: String,
+    pub password: String
 }
 
 impl Config {
