@@ -6,11 +6,10 @@ fn number_to_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D:
     Ok(n.to_string())
 }
 
-
 #[derive(Deserialize)]
 pub struct Config {
     pub name: String,
-    pub password: String
+    pub password: String,
 }
 
 impl Config {
@@ -20,7 +19,7 @@ impl Config {
 }
 
 #[serde(rename_all = "camelCase")]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Step
 {
     pub code: String,
@@ -33,7 +32,7 @@ pub struct Step
 }
 
 #[serde(rename_all = "camelCase")]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Product {
     #[serde(deserialize_with = "number_to_string")]
     pub product_id: String,
@@ -41,18 +40,15 @@ pub struct Product {
 }
 
 impl Product {
-    pub fn find_step(&self, speed: &String) -> Result<&Step, &'static str> {
-        match self.steps
+    pub fn get_step(&self, speed: &str) -> Option<&Step> {
+        self.steps
             .iter()
             .skip_while(|s| { s.speed_number != *speed })
-            .next() {
-                Some(step) => Ok(step),
-                None       => Err("Step not found.")
-            }
+            .next()
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Devices {
     #[serde(flatten)]
     pub mapped: std::collections::HashMap<String, Product>
@@ -63,10 +59,7 @@ impl Devices {
        serde_json::from_str::<Self>(s)
     }
 
-    pub fn find_product(&self, product_id: &String) -> Result<&Product, &'static str> {
-        match self.mapped.get(product_id) {
-            Some(product) => Ok(product),
-            None          => Err("Product not found.")
-        }
+    pub fn get_product(&self, product: &str) -> Option<&Product> {
+        self.mapped.get(product)
     }
 }
