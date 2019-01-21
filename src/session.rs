@@ -95,6 +95,7 @@ impl Session {
                 None    => true
             })
             .fold("".to_string(), |a, c| {
+                // todo: remove format to avoid excess allocations
                 let (name, value) = c.name_value();
                 if a.is_empty() {
                     format!("{}{}={}", a, name, value)
