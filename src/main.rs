@@ -35,12 +35,12 @@ fn run() -> Result<(), Box<std::error::Error>> {
             .map(|d| std::path::PathBuf::from(d))
             .or_else(|| dirs::home_dir().map(|d| d.join(".yota").join("default.json")))
             .ok_or("Pass a config path.")?;
-        if !config_path.is_file() { Err("The config doesn't exist or isn't a file.")? }
+        if !config_path.is_file() { Err("The config doesn't exist or it isn't a file.")? }
 
         let mut file = std::fs::File::open(
             config_path
             .to_str()
-            .ok_or("Can't parse the config path")?
+            .ok_or("The path contains invalid utf-8")?
         )?;
         let mut config_data = String::new();
         file.read_to_string(&mut config_data)?;
@@ -66,6 +66,7 @@ fn run() -> Result<(), Box<std::error::Error>> {
     let device_data = yota::parse_device_html(&text)?;
     let devices = yota::Devices::from_str(&device_data)?;
 
+    // todo: prettify error messages. Show something useful
     let product = devices.get_product(&id)
         .ok_or(format!("{} product doesn't exist.", &id))?;
     let step = product.get_step(&speed)
