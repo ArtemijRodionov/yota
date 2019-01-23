@@ -3,6 +3,7 @@ use clap::{Arg, App};
 fn app<'a, 'b>() -> App<'a, 'b> {
     App::new("yota")
         .version(clap::crate_version!())
+        .about("Manage an user account of Yota provider")
         .author("Artemiy Rodionov <wertins71@gmail.com>")
         .global_settings(&[
             clap::AppSettings::ColoredHelp,
