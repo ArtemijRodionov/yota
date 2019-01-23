@@ -1,3 +1,5 @@
+use std::io::{Read};
+
 use serde::de::{Deserialize};
 use serde_json::Number;
 
@@ -10,11 +12,15 @@ fn number_to_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D:
 pub struct Config {
     pub name: String,
     pub password: String,
+    pub iccid: String,
 }
 
 impl Config {
-    pub fn from_str(s: &str) -> serde_json::Result<Self> {
-       serde_json::from_str::<Self>(s)
+    pub fn open(path: &str) -> Result<Self, Box<std::error::Error>> {
+        let mut file = std::fs::File::open(path)?;
+        let mut config_data = String::new();
+        file.read_to_string(&mut config_data)?;
+        Ok(serde_json::from_str::<Self>(&config_data)?)
     }
 }
 
