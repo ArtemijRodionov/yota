@@ -29,12 +29,13 @@ impl Config {
 pub struct Step
 {
     pub code: String,
-    amount_number: String,
-    amount_string: String,
-    remain_number: String,
-    remain_string: String,
     speed_number: String,
-    speed_string: String,
+    // todo: show this fields in `yota status`
+    // speed_string: String,
+    // amount_number: String,
+    // amount_string: String,
+    // remain_number: String,
+    // remain_string: String,
 }
 
 #[serde(rename_all = "camelCase")]
