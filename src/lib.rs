@@ -2,11 +2,11 @@
 extern crate serde_derive;
 
 pub use self::session::{Session};
-pub use self::scheme::{Config, Step, Product, Devices};
+pub use self::scheme::{Config};
+use self::scheme::{Step, Product, Devices};
 
 mod session;
 mod scheme;
-
 
 pub struct Yota<'a> {
     session: &'a mut Session,
@@ -16,6 +16,34 @@ pub struct Yota<'a> {
 impl<'a> Yota<'a> {
     pub fn new(session: &'a mut Session, config: Config) -> Self {
         Yota { session, config }
+    }
+
+    pub fn change_speed(&mut self, speed: &str) -> Result<(), Box<std::error::Error>> {
+        // todo: Yota's authorization is very slow.
+        // Store cookies at disk to avoid it
+        let mut resp = self.login()?;
+
+        let text = resp.text().map(|t| remove_special_chars(&t))?;
+        let iccid_id_map = map_iccid_html(&text);
+        let id = iccid_id_map
+            .get(self.config.iccid.as_str())
+            .ok_or(format!(
+                "{} ICCID doesn't exist. Choose one of: {:?}",
+                &self.config.iccid,
+                iccid_id_map.keys()
+            ))?;
+
+        let device_data = parse_device_html(&text)?;
+        let devices = Devices::from_str(&device_data)?;
+
+        // todo: prettify error messages. Show something useful
+        let product = devices.get_product(&id)
+            .ok_or(format!("{} product doesn't exist.", &id))?;
+        let step = product.get_step(&speed)
+            .ok_or(format!("{} speed doesn't exist.", &speed))?;
+
+        self.change_offer(&product, &step)?;
+        Ok(())
     }
 
     fn login(&mut self) -> reqwest::Result<reqwest::Response> {
@@ -67,34 +95,6 @@ impl<'a> Yota<'a> {
             |b| b.form(&params)
         )
     }
-
-    pub fn change_speed(&mut self, speed: &str) -> Result<(), Box<std::error::Error>> {
-        // todo: Yota's authorization is very slow.
-        // Store cookies at disk to avoid it
-        let mut resp = self.login()?;
-
-        let text = resp.text()?;
-        let iccid_id_map = map_iccid_html(&text);
-        let id = iccid_id_map
-            .get(&self.config.iccid)
-            .ok_or(format!(
-                "{} ICCID doesn't exist. Choose one of: {:?}",
-                &self.config.iccid,
-                iccid_id_map.keys()
-            ))?;
-
-        let device_data = parse_device_html(&text)?;
-        let devices = Devices::from_str(&device_data)?;
-
-        // todo: prettify error messages. Show something useful
-        let product = devices.get_product(&id)
-            .ok_or(format!("{} product doesn't exist.", &id))?;
-        let step = product.get_step(&speed)
-            .ok_or(format!("{} speed doesn't exist.", &speed))?;
-
-        self.change_offer(&product, &step)?;
-        Ok(())
-    }
 }
 
 struct Token {
@@ -121,37 +121,37 @@ impl Token {
 }
 
 fn remove_special_chars(text: &str) -> String {
+    let is_space = |c| [' ', '\n', '\t', '\r']
+            .iter()
+            .fold(false, |acc, s| { acc || (*s == c) });
+
     text
         .chars()
-        .filter(|c| *c != '\n' && *c != ' ')
+        .filter(|c| !is_space(*c))
         .collect::<String>()
 }
 
-pub fn map_iccid_html(html: &str) -> std::collections::HashMap<String, String> {
-    let without_special_chars = remove_special_chars(&html);
-    let mut html = without_special_chars.as_str();
-
+fn map_iccid_html(mut html: &str) -> std::collections::HashMap<&str, &str> {
     let iccid_token = Token::new("ICCID:", r"</");
     let id_token = Token::new(r#"name="product"value=""#, r#"""#);
 
     let mut result = std::collections::HashMap::new();
     while let (Some((iccid_start, iccid_end)), Some((id_start, id_end))) = (iccid_token.parse(html), id_token.parse(html)) {
-        let product_id = html[id_start..id_end].to_owned().to_string();
-        let iccid = html[iccid_start..iccid_end].to_owned().to_string();
+        let iccid = &html[iccid_start..iccid_end];
+        let id = &html[id_start..id_end];
 
-        result.insert(iccid, product_id);
+        result.insert(iccid, id);
         html = &html[iccid_end..];
     }
     result.to_owned()
 }
 
-pub fn parse_device_html(html: &str) -> Result<String, &'static str> {
-    let trimmed_html = remove_special_chars(&html);
+fn parse_device_html(html: &str) -> Result<&str, &'static str> {
     let mut device_token = Token::new("sliderData=", "};");
     device_token.set_offset(0, 1);
 
-    if let Some((start, end)) = device_token.parse(&trimmed_html) {
-        Ok(trimmed_html[start..end].to_string())
+    if let Some((start, end)) = device_token.parse(&html) {
+        Ok(&html[start..end])
     } else {
         Err("Data representation is changed.")
     }
@@ -159,6 +159,8 @@ pub fn parse_device_html(html: &str) -> Result<String, &'static str> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     fn yota_devices() -> String {
         let offer_code = "POS-MA6-0005";
         let step = format!(r#"{{
@@ -182,7 +184,7 @@ mod tests {
     }
 
     fn yota_html(body: &str) -> String {
-        format!(r#"
+        let html = format!(r#"
         <html>
             <head></head>
             <script>
@@ -190,16 +192,17 @@ mod tests {
                 // some js logic
             </script>
         </html>
-        "#, body)
+        "#, body);
+        remove_special_chars(&html).to_string()
     }
 
     #[test]
     fn test_deserealization() {
         let data = yota_devices();
-        let result = super::Devices::from_str(&data).unwrap();
+        let devices = Devices::from_str(&data).unwrap();
 
-        assert_eq!(result.mapped.len(), 2);
-        for p in result.mapped.values() {
+        assert_eq!(devices.mapped.len(), 2);
+        for p in devices.mapped.values() {
             assert_eq!(p.steps.len(), 3);
         }
     }
@@ -209,11 +212,11 @@ mod tests {
         let data = yota_devices();
         let devices_html = yota_html(format!("var sliderData = {};", data).as_str());
 
-        let result = super::parse_device_html(&devices_html).unwrap();
-        assert_eq!(result, super::remove_special_chars(&data));
+        let result = parse_device_html(&devices_html).unwrap();
+        assert_eq!(result, remove_special_chars(&data));
     }
 
-        #[test]
+    #[test]
     fn test_parse_iccid_map() {
         let data = [("id123312", "iccid312123"), ("idtest", "iccidtest")];
         let html_body = data
@@ -231,14 +234,12 @@ mod tests {
                 acc
             });
 
-
-        let result = super::map_iccid_html(&yota_html(&html_body));
+        let html = yota_html(&html_body);
+        let result = map_iccid_html(&html);
 
         assert_eq!(result.iter().count(), 2);
-        for (i, (k, v)) in result.iter().enumerate() {
-            let (id, iccid) = data[i];
-            assert_eq!(k, iccid);
-            assert_eq!(v, id);
+        for (id, iccid) in data.iter() {
+            assert_eq!(result.get(iccid).unwrap(), id);
         }
     }
 }
