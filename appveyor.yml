@@ -48,7 +48,7 @@ before_deploy:
 deploy:
   artifact: /.*\.zip/
   auth_token:
-    secure: $(GITHUB_API_KEY)
+    secure: 96Clw/Cnl5tn1omtfr1oNi4Za54ktLLMS49hqyVLkWAT7mZ7/+/r+TPeoGcWRlRD
   description: ''
   on:
     RUST_VERSION: stable
