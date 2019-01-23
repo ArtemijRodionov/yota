@@ -1,4 +1,6 @@
 # Yota
+[![Build Status](https://travis-ci.org/artemiy312/yota.svg?branch=master)](https://travis-ci.org/artemiy312/yota)
+[![Build status](https://ci.appveyor.com/api/projects/status/8aoo0p2aj0s7jl0m/branch/master?svg=true)](https://ci.appveyor.com/project/artemiy312/yota/branch/master)
 
 Change a device's speed of Yota provider.
 Supports accounts with multiple devices.
