@@ -1,6 +1,7 @@
 # Yota
 
-Change a device's speed of Yota provider. Supports accounts with multiple devices.
+Change a device's speed of Yota provider.
+Supports accounts with multiple devices.
 
 ```bash
 yota 0.1.0
@@ -28,21 +29,15 @@ Create config file `config.json`:
 {
   "name": "example@email.com",
   "password": "pass",
-  "iccid": "11111111111" // You may find it at /selfcare/devices
+  "iccid": "11111111111"
 }
 ```
+
+You may find ICCID of the device at "yota.ru/selfcare/devices".
 
 Change the speed:
 ```bash
 yota 7.1
-```
-
-### Prerequisites
-
-What things you need to install the software and how to install them
-
-```
-Give examples
 ```
 
 ### Installing
