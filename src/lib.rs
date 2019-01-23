@@ -8,6 +8,95 @@ mod session;
 mod scheme;
 
 
+pub struct Yota<'a> {
+    session: &'a mut Session,
+    config: Config,
+}
+
+impl<'a> Yota<'a> {
+    pub fn new(session: &'a mut Session, config: Config) -> Self {
+        Yota { session, config }
+    }
+
+    fn login(&mut self) -> reqwest::Result<reqwest::Response> {
+        let params =  [
+            ("IDToken1", self.config.name.as_str()),
+            ("IDToken2", self.config.password.as_str()),
+            ("goto", "https://my.yota.ru:443/selfcare/loginSuccess"),
+            ("gotoOnFail", "https://my.yota.ru:443/selfcare/loginError"),
+            ("org", "customer"),
+            ("ForceAuth", "true"),
+            ("old-token", ""),
+        ];
+
+        self.session.execute(
+            reqwest::Method::POST,
+            "https://login.yota.ru/UI/Login",
+            |b| b.form(&params)
+        )
+    }
+
+    fn get_devices(&mut self) -> reqwest::Result<reqwest::Response> {
+        self.session.execute(
+            reqwest::Method::GET,
+            "https://my.yota.ru/selfcare/devices",
+            |b| b
+        )
+    }
+
+    fn change_offer(&mut self, product: &Product, step: &Step) -> reqwest::Result<reqwest::Response> {
+        let params =  [
+            ("product", product.product_id.as_str()),
+            ("offerCode", step.code.as_str()),
+            ("areOffersAvailable", "false"),
+            ("status", "custom"),
+            ("autoprolong", "0"),
+            ("isSlot", "false"),
+            ("currentDevice", "1"),
+            ("isDisablingAutoprolong", "false"),
+            ("resourceId", ""),
+            ("username", ""),
+            ("homeOfferCode", ""),
+            ("period", ""),
+            ("homeOfferCode", ""),
+        ];
+
+        self.session.execute(
+            reqwest::Method::POST,
+            "https://my.yota.ru/selfcare/devices/changeOffer",
+            |b| b.form(&params)
+        )
+    }
+
+    pub fn change_speed(&mut self, speed: &str) -> Result<(), Box<std::error::Error>> {
+        // todo: Yota's authorization is very slow.
+        // Store cookies at disk to avoid it
+        let mut resp = self.login()?;
+
+        let text = resp.text()?;
+        let iccid_id_map = map_iccid_html(&text);
+        let id = iccid_id_map
+            .get(&self.config.iccid)
+            .ok_or(format!(
+                "{} ICCID doesn't exist. Choose one of: {:?}",
+                &self.config.iccid,
+                iccid_id_map.keys()
+            ))?;
+
+        let device_data = parse_device_html(&text)?;
+        let devices = Devices::from_str(&device_data)?;
+
+        // todo: prettify error messages. Show something useful
+        let product = devices.get_product(&id)
+            .ok_or(format!("{} product doesn't exist.", &id))?;
+        let step = product.get_step(&speed)
+            .ok_or(format!("{} speed doesn't exist.", &speed))?;
+
+        self.change_offer(&product, &step)?;
+        Ok(())
+    }
+}
+
 struct Token {
     start_token: (&'static str, i64),
     end_token: (&'static str, i64),
@@ -66,56 +155,6 @@ pub fn parse_device_html(html: &str) -> Result<String, &'static str> {
     } else {
         Err("Data representation is changed.")
     }
-}
-
-pub fn login(session: &mut Session, config: &Config) -> reqwest::Result<reqwest::Response> {
-    let params =  [
-        ("IDToken1", config.name.as_str()),
-        ("IDToken2", config.password.as_str()),
-        ("goto", "https://my.yota.ru:443/selfcare/loginSuccess"),
-        ("gotoOnFail", "https://my.yota.ru:443/selfcare/loginError"),
-        ("org", "customer"),
-        ("ForceAuth", "true"),
-        ("old-token", ""),
-    ];
-
-    session.execute(
-        reqwest::Method::POST,
-        "https://login.yota.ru/UI/Login",
-        |b| b.form(&params)
-    )
-}
-
-pub fn get_devices(session: &mut Session) -> reqwest::Result<reqwest::Response> {
-    session.execute(
-        reqwest::Method::GET,
-        "https://my.yota.ru/selfcare/devices",
-        |b| b
-    )
-}
-
-pub fn change_offer(session: &mut Session, product: &Product, step: &Step) -> reqwest::Result<reqwest::Response> {
-    let params =  [
-        ("product", product.product_id.as_str()),
-        ("offerCode", step.code.as_str()),
-        ("areOffersAvailable", "false"),
-        ("status", "custom"),
-        ("autoprolong", "0"),
-        ("isSlot", "false"),
-        ("currentDevice", "1"),
-        ("isDisablingAutoprolong", "false"),
-        ("resourceId", ""),
-        ("username", ""),
-        ("homeOfferCode", ""),
-        ("period", ""),
-        ("homeOfferCode", ""),
-    ];
-
-    session.execute(
-        reqwest::Method::POST,
-        "https://my.yota.ru/selfcare/devices/changeOffer",
-        |b| b.form(&params)
-    )
 }
 
 #[cfg(test)]
