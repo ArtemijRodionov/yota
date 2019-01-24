@@ -44,15 +44,22 @@ yota 7.1
 
 ### Installing
 
-```rust
-cargo build --release
-sudo cp target/release/yota /usr/local/bin
+```bash
+curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git artemiy312/yota --to /usr/local/bin
 ```
+
+Or get the [latest version](https://github.com/artemiy312/yota/releases/latest) for your platform manually.
 
 ## Running the tests
 
-```rust
+```bash
 cargo test
+```
+
+## Generating the docs
+
+```bash
+cargo doc --open
 ```
 
 ## License
